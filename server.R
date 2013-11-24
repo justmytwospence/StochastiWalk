@@ -1,6 +1,6 @@
 library(shiny)
 library(ggplot2)
-options(shiny.error=browser)
+library(forecast)
 
 circleFun <- function(center = c(0, 0), diameter = 2, npoints = 100){
   r = diameter / 2
@@ -12,7 +12,7 @@ circleFun <- function(center = c(0, 0), diameter = 2, npoints = 100){
 
 shinyServer(function(input, output) {
   
-  ts <- reactive({
+  timeseries <- reactive({
     ar <- c()
     if (input$p > 0) {
       ar <- c(ar, input$ar1)
@@ -33,10 +33,21 @@ shinyServer(function(input, output) {
     if (input$q > 2) {
       ma <- c(ma, input$ma3)
     }
-    ts <- arima.sim(list(order = c(length(ar), as.numeric(input$d), length(ma)),
-                         ar = ar,
-                         ma = ma), 
-                    n = 500)
+    
+    innov <- rnorm(500, sd = 2)
+    if (input$shock) {
+      innov[250] <- 10
+    }
+    
+    timeseries <- arima.sim(list(order = c(length(ar), as.numeric(input$d), length(ma)),
+                                 ar = ar,
+                                 ma = ma),
+                            innov = innov,
+                            n = 500)
+  })
+  
+  model <- reactive({
+    forecast(timeseries(), h = input$h)
   })
   
   output$ts <- renderPlot({
@@ -51,21 +62,63 @@ shinyServer(function(input, output) {
     } else {
       color <- 'black'
     }
-    df <- data.frame('Time' = time(ts()),
-                     'Value' = ts())
+    
+    df <- data.frame('Time' = as.numeric(time(timeseries())),
+                     'Value' = as.numeric(timeseries()),
+                     'Upper' = NA,
+                     'Lower' = NA,
+                     'Type' = 'Data')
+    if (input$showmodel) {
+      df.model <- data.frame('Time' = as.numeric(time(timeseries())),
+                             'Value' = as.numeric(model()$fitted),
+                             'Upper' = NA,
+                             'Lower' = NA,
+                             'Type' = 'Model')
+      df <- rbind(df, df.model)
+    }
+    if (input$showforecast) {
+      df.forecast <- data.frame('Time' = as.numeric(row.names(print(model()))),
+                                'Value' = model()$mean,
+                                'Upper' = model()$upper[,2],
+                                'Lower' = model()$lower[,2],
+                                'Type' = 'Forecast')
+      df <- rbind(df, df.forecast)      
+    }
+    
     p <- ggplot(data = df,
                 aes(x = Time,
-                    y = Value)) + 
-      geom_line(colour = color) +
+                    y = Value,
+                    group = Type)) + 
+      geom_line(aes(colour = Type)) +
       xlab('Time') + 
       ylab(NULL) + 
+      scale_colour_manual(values = c('Data' = 'black',
+                                     'Model' = color,
+                                     'Forecast' = '#33cc66')) +
+      guides(colour = FALSE) +
       theme_bw()
+    if (input$showforecast) {
+      p <- p +
+        geom_ribbon(aes(x = Time,
+                        ymin = Lower,
+                        ymax = Upper),
+                    fill = '#33cc66',
+                    alpha = .5)
+    }
+    
     print(p)
   })
   
   output$ur.ar <- renderPlot({
-    ar <- c(-input$ar1, -input$ar2, -input$ar3)
-    roots <- polyroot(c(1, ar))
+    if (input$d == 0) {
+      roots <- polyroot(c(1 , -input$ar1, -input$ar2, -input$ar3))
+    }
+    if (input$d == 1) {
+      roots <- polyroot(c(1, -(1 + input$ar1), -input$ar2, -input$ar3))
+    }
+    if (input$d == 2) {
+      roots <- polyroot(c(1, -(1 + input$ar1), -(1 + input$ar2), -input$ar3))
+    }
     roots.real <- sapply(roots, Re)
     roots.imaginary <- sapply(roots, Im)
     roots.df <- data.frame('Real' = roots.real,
@@ -86,7 +139,6 @@ shinyServer(function(input, output) {
         geom_point(data = roots.df,
                    aes(Real,
                        Imaginary),
-                   #position = 'jitter',
                    size = 3,
                    colour = '#ff4444')
     }
@@ -94,8 +146,15 @@ shinyServer(function(input, output) {
   })
   
   output$ur.ma <- renderPlot({
-    ma <- c(input$ma1, input$ma2, input$ma3)
-    roots <- polyroot(c(1, ma))
+    if (input$d == 0) {
+      roots <- polyroot(c(1 , input$ma1, input$ma2, input$ma3))
+    }
+    if (input$d == 1) {
+      roots <- polyroot(c(1, (1 + input$ma1), input$ma2, input$ma3))
+    }
+    if (input$d == 2) {
+      roots <- polyroot(c(1, (1 + input$ar1), (1 + input$ar2), input$ar3))
+    }
     roots.real <- sapply(roots, Re)
     roots.imaginary <- sapply(roots, Im)
     roots.df <- data.frame('Real' = roots.real,
@@ -116,7 +175,6 @@ shinyServer(function(input, output) {
         geom_point(data = roots.df,
                    aes(Real,
                        Imaginary),
-                   #position = 'jitter',
                    size = 3,
                    colour = '#0099cc')
     }
@@ -124,11 +182,11 @@ shinyServer(function(input, output) {
   })
   
   output$acf.raw <- renderPlot({
-    acf <- acf(ts())
+    acf <- acf(timeseries())
     acf <- data.frame('Type' = 'Raw',
                       'Correlation' = acf$acf[-1],
                       'Lag' = acf$lag[-1])
-    pacf <- pacf(ts())
+    pacf <- pacf(timeseries())
     pacf <- data.frame('Type' = 'Partial',
                        'Correlation' = pacf$acf,
                        'Lag' = pacf$lag)
@@ -147,11 +205,11 @@ shinyServer(function(input, output) {
   })
   
   output$acf.compare <- renderPlot({
-    acf <- acf(ts())
+    acf <- acf(timeseries())
     acf <- data.frame('Type' = 'Raw',
                       'Correlation' = abs(acf$acf[-1]),
                       'Lag' = acf$lag[-1])
-    pacf <- pacf(ts())
+    pacf <- pacf(timeseries())
     pacf <- data.frame('Type' = 'Partial',
                        'Correlation' =  abs(pacf$acf),
                        'Lag' = pacf$lag)

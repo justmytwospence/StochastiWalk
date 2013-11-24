@@ -1,4 +1,5 @@
 library(shiny)
+set.seed(37)
 
 sidebarPanel <- function (...) 
 {
@@ -8,14 +9,29 @@ sidebarPanel <- function (...)
 shinyUI(pageWithSidebar(
   headerPanel("StochastiWalk"),
   sidebarPanel(
+    checkboxInput('showmodel',
+                  'Show model',
+                  value = FALSE),
+    checkboxInput('showforecast',
+                  'Show forecast',
+                  value = FALSE),
+    conditionalPanel('input.showforecast',
+                     sliderInput('h',
+                                 'Number of predictions',
+                                 min = 1,
+                                 max = 20,
+                                 step = 1,
+                                 value = 10)),
+    checkboxInput('shock',
+                  'Administer shock',
+                  value = FALSE),
     gsub("label class=\"radio\"", "label class=\"radio inline\"",
          radioButtons('d',
                       'Order of Integration',
                       choices = list(
                         'None' = 0,
                         '1' = 1,
-                        '2' = 2,
-                        '3' = 3),
+                        '2' = 2),
                       selected = 'None')),
     gsub("label class=\"radio\"", "label class=\"radio inline\"",
          radioButtons('p',
@@ -29,23 +45,23 @@ shinyUI(pageWithSidebar(
     conditionalPanel('input.p > 0',
                      sliderInput('ar1',
                                  'AR1',
-                                 min = -2,
-                                 max = 2,
-                                 step = .1,
+                                 min = -1,
+                                 max = 1,
+                                 step = .05,
                                  value = 0)),
     conditionalPanel('input.p > 1',
                      sliderInput('ar2',
                                  'AR2',
-                                 min = -2,
-                                 max = 2,
-                                 step = .1,
+                                 min = -1,
+                                 max = 1,
+                                 step = .05,
                                  value = 0)),
     conditionalPanel('input.p > 2',
                      sliderInput('ar3',
                                  'AR3',
-                                 min = -2,
-                                 max = 2,
-                                 step = .1,
+                                 min = -1,
+                                 max = 1,
+                                 step = .05,
                                  value = 0)),
     gsub("label class=\"radio\"", "label class=\"radio inline\"",
          radioButtons('q',
@@ -101,7 +117,8 @@ shinyUI(pageWithSidebar(
       tabPanel("About",
                p(
                  div(tags$p('Created by Spencer Boucher, MS candidate in data analytics.')),
-                 div(tags$a(href = 'http://spencerboucher.com', 'spencerboucher.com'))))
+                 div(tags$a(href = 'http://spencerboucher.com', 'spencerboucher.com')),
+                 div(tags$a(href = 'https://github.com/justmytwospence/StochastiWalk', 'Find the source code on GitHub.'))))
   
     )#)
   )
