@@ -44,10 +44,12 @@ shinyServer(function(input, output) {
                                  ma = ma),
                             innov = innov,
                             n = 500)
+    
+    timeseries <- timeseries + input$trend*time(timeseries) + rnorm(500, sd = 6)
   })
   
   model <- reactive({
-    forecast(timeseries(), h = input$h)
+    forecast(timeseries(), h = 100)
   })
   
   output$ts <- renderPlot({

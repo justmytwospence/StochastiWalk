@@ -1,5 +1,4 @@
 library(shiny)
-set.seed(37)
 
 sidebarPanel <- function (...) 
 {
@@ -15,16 +14,16 @@ shinyUI(pageWithSidebar(
     checkboxInput('showforecast',
                   'Show forecast',
                   value = FALSE),
-    conditionalPanel('input.showforecast',
-                     sliderInput('h',
-                                 'Number of predictions',
-                                 min = 1,
-                                 max = 20,
-                                 step = 1,
-                                 value = 10)),
     checkboxInput('shock',
                   'Administer shock',
                   value = FALSE),
+    br(),
+    sliderInput('trend',
+                'Trend',
+                min = -.1,
+                max = .1,
+                step = .001,
+                value = 0),
     gsub("label class=\"radio\"", "label class=\"radio inline\"",
          radioButtons('d',
                       'Order of Integration',
@@ -119,7 +118,7 @@ shinyUI(pageWithSidebar(
                  div(tags$p('Created by Spencer Boucher, MS candidate in data analytics.')),
                  div(tags$a(href = 'http://spencerboucher.com', 'spencerboucher.com')),
                  div(tags$a(href = 'https://github.com/justmytwospence/StochastiWalk', 'Find the source code on GitHub.'))))
-  
+      
     )#)
   )
 ))
